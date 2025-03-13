@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 
 interface Friend {
   name: string;
@@ -17,7 +17,9 @@ interface StreakData {
 
 const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
   const [myStreak, setMyStreak] = useState<number>(0);
-  const [friends, setFriends] = useState<Friend[]>([
+  
+  // Use useMemo to prevent recreating this array on every render
+  const friends = useMemo<Friend[]>(() => [
     { 
       name: 'Alex', 
       streak: 5, 
@@ -38,7 +40,8 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
       streak: 2, 
       avatar: '/facevibe/avatars/jordan.jpg' 
     }
-  ]);
+  ], []); // Empty dependency array means this only runs once
+  
   const [leaderboard, setLeaderboard] = useState<(Friend | { name: string; streak: number; isUser: true; avatar?: string })[]>([]);
   const [showConfetti, setShowConfetti] = useState<boolean>(false);
   
@@ -53,10 +56,10 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
     updateMyStreak();
   }, [exerciseDoneToday]);
 
-  // Update leaderboard when myStreak or friends change
+  // Update leaderboard when myStreak changes
   useEffect(() => {
     updateLeaderboard();
-  }, [myStreak, friends]);
+  }, [myStreak]); // Removed friends from the dependency array since it doesn't change
 
   // Show confetti animation when streak increases
   useEffect(() => {

@@ -94,7 +94,7 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
   // Animate resilience score counting up
   useEffect(() => {
     // Animate the score counting up
-    let start = 0;
+    //let start = 0;
     const end = resilienceScore;
     const duration = 1500; // milliseconds
     const startTime = Date.now();

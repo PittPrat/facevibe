@@ -27,6 +27,12 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<'default' | 'calm' | 'energy'>('default');
   const [showIntro, setShowIntro] = useState<boolean>(true);
   
+  // Video quality state
+  const [videoQuality, setVideoQuality] = useState<'low' | 'medium' | 'high'>('medium');
+  const [qualityKey, setQualityKey] = useState<number>(0);
+  const [showQualityNotice, setShowQualityNotice] = useState(false);
+  const [qualityChangeMessage, setQualityChangeMessage] = useState('');
+  
   // Premium colors - dynamically adjusted based on theme
   const getThemeColors = () => {
     switch (theme) {
@@ -56,6 +62,45 @@ const App: React.FC = () => {
   
   const themeColors = getThemeColors();
 
+  // Get video constraints based on quality setting
+  const getVideoConstraints = () => {
+    switch(videoQuality) {
+      case 'low':
+        return {
+          width: { ideal: 320, max: 480 },
+          height: { ideal: 240, max: 360 },
+          facingMode: "user"
+        };
+      case 'medium':
+        return {
+          width: { ideal: 640, max: 720 },
+          height: { ideal: 480, max: 540 },
+          facingMode: "user"
+        };
+      case 'high':
+        return {
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          facingMode: "user"
+        };
+    }
+  };
+
+  // Handle quality change
+  const handleQualityChange = (newQuality: 'low' | 'medium' | 'high') => {
+    // Don't do anything if we're selecting the current quality
+    if (newQuality === videoQuality) return;
+    
+    setVideoQuality(newQuality);
+    setQualityKey(prev => prev + 1);
+    localStorage.setItem('preferredVideoQuality', newQuality);
+    
+    // Show notification
+    setQualityChangeMessage(`Camera quality set to ${newQuality}`);
+    setShowQualityNotice(true);
+    setTimeout(() => setShowQualityNotice(false), 3000);
+  };
+
   // Handle landmark data from ExerciseTracker
   const handleLandmarkUpdate = useCallback((newLandmarks: any, visible: boolean) => {
     setLandmarks(newLandmarks);
@@ -77,8 +122,15 @@ const App: React.FC = () => {
     setStressLevel(newStressLevel);
   }, []);
 
-  // Check if exercise was done today on app load
+  // Load user preferences and check exercise status
   useEffect(() => {
+    // Load preferred video quality if set
+    const savedQuality = localStorage.getItem('preferredVideoQuality') as 'low' | 'medium' | 'high' | null;
+    if (savedQuality) {
+      setVideoQuality(savedQuality);
+    }
+    
+    // Check if exercise was done today
     const today = new Date().toISOString().split('T')[0];
     const lastExerciseDate = localStorage.getItem('last_exercise_date');
     
@@ -162,31 +214,54 @@ const App: React.FC = () => {
     }
   };
 
-  const [videoQuality, setVideoQuality] = useState<'low' | 'medium' | 'high'>('high');
-
-  // Add this function to App.tsx
-  const getVideoConstraints = () => {
-    switch(videoQuality) {
-      case 'low':
-        return {
-          width: { ideal: 320, max: 480 },
-          height: { ideal: 240, max: 360 },
-          facingMode: "user"
+  useEffect(() => {
+    // Load MediaPipe scripts once at app startup
+    const loadMediaPipeScripts = async () => {
+      try {
+        // Check if already loaded
+        if (window.FaceMesh && window.Camera) {
+          console.log("MediaPipe scripts already loaded");
+          return;
+        }
+        
+        console.log("Loading MediaPipe scripts globally");
+        
+        // Setup the Module object to prevent WASM error
+        (window as any).Module = { 
+          arguments_: [],
+          locateFile: (file: string) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+          }
         };
-      case 'medium':
-        return {
-          width: { ideal: 640, max: 720 },
-          height: { ideal: 480, max: 540 },
-          facingMode: "user"
-        };
-      case 'high':
-        return {
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          facingMode: "user"
-        };
-    }
-  };
+        
+        // Load Face Mesh script
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js';
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+        
+        // Load Camera Utils script
+        await new Promise((resolve, reject) => {
+          const cameraScript = document.createElement('script');
+          cameraScript.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js';
+          cameraScript.async = true;
+          cameraScript.onload = resolve;
+          cameraScript.onerror = reject;
+          document.body.appendChild(cameraScript);
+        });
+        
+        console.log("MediaPipe scripts loaded successfully");
+      } catch (error) {
+        console.error("Error loading MediaPipe scripts:", error);
+      }
+    };
+    
+    loadMediaPipeScripts();
+  }, []);
 
   // Start the app
   const startApp = () => {
@@ -370,10 +445,11 @@ const App: React.FC = () => {
             </span>
           </button>
           
+          {/* Video Quality Selector */}
           <div style={{ marginRight: '10px' }}>
             <select
               value={videoQuality}
-              onChange={(e) => setVideoQuality(e.target.value as 'low' | 'medium' | 'high')}
+              onChange={(e) => handleQualityChange(e.target.value as 'low' | 'medium' | 'high')}
               style={{
                 padding: '8px 15px',
                 borderRadius: '20px',
@@ -390,8 +466,17 @@ const App: React.FC = () => {
               <option value="medium">Medium Quality</option>
               <option value="high">High Quality</option>
             </select>
+            <span style={{
+              position: 'absolute',
+              right: '90px',
+              top: '25px',
+              pointerEvents: 'none',
+              color: 'white'
+            }}>
+              ▼
+            </span>
           </div>
-
+          
           <div style={{ position: 'relative' }}>
             <select
               value={theme}
@@ -490,7 +575,12 @@ const App: React.FC = () => {
               height: '100%', 
               position: 'relative' 
             }}>
-              <ExerciseTracker videoConstraints={getVideoConstraints()}/>
+              <ExerciseTracker 
+                key={`video-quality-${qualityKey}`}
+                videoConstraints={getVideoConstraints()}
+                onLandmarkUpdate={handleLandmarkUpdate}
+                onExerciseComplete={handleExerciseComplete}
+              />
               
               {/* Overlay stats at the bottom center */}
               <div style={{
@@ -777,6 +867,25 @@ const App: React.FC = () => {
         </div>
       )}
       
+      {/* Quality change notification */}
+      {showQualityNotice && (
+        <div style={{
+          position: 'fixed',
+          bottom: '120px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          color: 'white',
+          padding: '10px 20px',
+          borderRadius: '20px',
+          fontSize: '14px',
+          zIndex: 1000,
+          animation: 'fadeIn 0.3s forwards'
+        }}>
+          {qualityChangeMessage}
+        </div>
+      )}
+      
       {/* Floating Start Button (only when not started) */}
       {!appStarted && (
         <div style={{
@@ -803,6 +912,7 @@ const App: React.FC = () => {
             }}
           >
             ▶️
+            ▶️
           </button>
         </div>
       )}
@@ -815,6 +925,27 @@ const App: React.FC = () => {
           onStressUpdate={handleStressUpdate}
         />
       )}
+      
+      {/* Global animations */}
+      <style>
+        {`
+          @keyframes fadeIn {
+            0% { opacity: 0; transform: translate(-50%, 20px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+          }
+          
+          @keyframes pulse {
+            0% { box-shadow: 0 0 5px rgba(0, 196, 180, 0.7); }
+            50% { box-shadow: 0 0 20px rgba(0, 196, 180, 0.9); }
+            100% { box-shadow: 0 0 5px rgba(0, 196, 180, 0.7); }
+          }
+          
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </div>
   );
 };
