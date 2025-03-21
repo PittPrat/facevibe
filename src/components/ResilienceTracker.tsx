@@ -23,10 +23,13 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
   
-  // Premium colors
-  const TEAL_COLOR = "#00C4B4";
-  const GOLD_COLOR = "#FFD700";
-  const LIGHT_TEAL = "rgba(0, 196, 180, 0.2)";
+  // Updated colors to match Figma design
+  const PRIMARY_COLOR = "#8D8D8D"; // Gray
+  const SECONDARY_COLOR = "#C49A7E"; // Beige
+  const ACCENT_COLOR = "#E1DDD1"; // Light beige
+  const BACKGROUND_COLOR = "#F8F6F2"; // Off-white
+  const TEXT_COLOR = "#2E2E2E"; // Dark gray
+  const CHART_COLOR = "#A3B1AB"; // Sage green from button
 
   // Calculate resilience score and update localStorage
   useEffect(() => {
@@ -94,7 +97,6 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
   // Animate resilience score counting up
   useEffect(() => {
     // Animate the score counting up
-    //let start = 0;
     const end = resilienceScore;
     const duration = 1500; // milliseconds
     const startTime = Date.now();
@@ -104,8 +106,7 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
       const progress = Math.min(elapsed / duration, 1);
       
       // Easing function for smoother animation
-      const easedProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-      
+      const easedProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * (progress+animatedScore));
       const current = Math.floor(easedProgress * end);
       setAnimatedScore(current);
       
@@ -138,8 +139,8 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
         
         // Create gradient for the line
         const gradient = ctx.createLinearGradient(0, 0, 0, 150);
-        gradient.addColorStop(0, TEAL_COLOR);
-        gradient.addColorStop(1, GOLD_COLOR);
+        gradient.addColorStop(0, CHART_COLOR);
+        gradient.addColorStop(1, SECONDARY_COLOR);
         
         // Create chart
         chartInstance.current = new Chart(ctx, {
@@ -149,16 +150,16 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
             datasets: [{
               label: 'Resilience',
               data: resilienceValues,
-              borderColor: gradient,
-              backgroundColor: LIGHT_TEAL,
-              borderWidth: 3,
-              tension: 0.3,
+              borderColor: CHART_COLOR,
+              backgroundColor: 'rgba(163, 177, 171, 0.1)',
+              borderWidth: 2,
+              tension: 0.4,
               fill: true,
-              pointBackgroundColor: TEAL_COLOR,
+              pointBackgroundColor: CHART_COLOR,
               pointBorderColor: '#fff',
-              pointBorderWidth: 2,
-              pointRadius: 4,
-              pointHoverRadius: 6
+              pointBorderWidth: 1,
+              pointRadius: 3,
+              pointHoverRadius: 5
             }]
           },
           options: {
@@ -169,16 +170,16 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
                 display: false
               },
               tooltip: {
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                backgroundColor: 'rgba(46, 46, 46, 0.8)',
                 titleFont: {
-                  size: 14,
-                  family: 'Arial'
+                  size: 12,
+                  family: 'serif'
                 },
                 bodyFont: {
-                  size: 14,
-                  family: 'Arial'
+                  size: 12,
+                  family: 'serif'
                 },
-                padding: 10,
+                padding: 8,
                 displayColors: false
               }
             },
@@ -189,8 +190,8 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
                 },
                 ticks: {
                   font: {
-                    family: 'Arial',
-                    size: 12
+                    family: 'serif',
+                    size: 10
                   }
                 }
               },
@@ -198,12 +199,12 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
                 beginAtZero: true,
                 max: 100,
                 grid: {
-                  color: 'rgba(0, 0, 0, 0.05)'
+                  color: 'rgba(46, 46, 46, 0.05)'
                 },
                 ticks: {
                   font: {
-                    family: 'Arial',
-                    size: 12
+                    family: 'serif',
+                    size: 10
                   },
                   callback: function(value) { return `${value}`; }
                 }
@@ -254,11 +255,11 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
   // Dynamic message based on resilience score
   const getResilienceMessage = () => {
     if (resilienceScore > 80) {
-      return "Stress is shaking in its designer boots!";
+      return "Stress is shaking in its boots!";
     } else if (resilienceScore > 50) {
       return "Stress is getting nervous!";
     } else if (resilienceScore > 30) {
-      return "Keep flexing, champ!";
+      return "Keep flexing, you're doing great!";
     } else {
       return "Start your journey to resilience!";
     }
@@ -268,64 +269,47 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
     <div className="resilience-tracker" style={{ 
       position: 'relative',
       width: '100%',
-      maxWidth: '300px',
+      maxWidth: '400px',
       margin: '0 auto',
-      padding: '15px',
+      padding: '20px',
       backgroundColor: 'white',
       borderRadius: '15px',
-      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.1)',
-      border: `1px solid ${LIGHT_TEAL}`
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)',
+      border: `1px solid ${ACCENT_COLOR}`
     }}>
-      {/* Premium title */}
+      {/* Refined title */}
       <h3 style={{ 
-        color: TEAL_COLOR, 
-        fontFamily: 'Arial', 
+        color: TEXT_COLOR, 
+        fontFamily: 'serif', 
         fontSize: '20px',
         textAlign: 'center',
-        margin: '0 0 15px 0',
+        margin: '0 0 20px 0',
         padding: '0 0 10px 0',
-        borderBottom: `2px solid ${LIGHT_TEAL}`
+        borderBottom: `1px solid ${ACCENT_COLOR}`,
+        fontWeight: 'normal'
       }}>
         Resilience Tracker
       </h3>
       
-      {/* Resilience Score Display */}
+      {/* Resilience Message Display */}
       <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
+        fontSize: '16px',
+        fontFamily: 'serif',
+        textAlign: 'center',
+        color: TEXT_COLOR,
         marginBottom: '15px'
       }}>
-        <div style={{
-          fontSize: '24px',
-          fontFamily: 'Arial',
-          fontWeight: 'bold',
-          color: resilienceScore > 50 ? TEAL_COLOR : '#333',
-          marginBottom: '5px',
-          textShadow: resilienceScore > 50 ? '0 0 10px rgba(0, 196, 180, 0.3)' : 'none',
-          animation: resilienceScore > 80 ? 'pulse 2s infinite' : 'none'
-        }}>
-          Resilience: {animatedScore}
-        </div>
-        
-        <div style={{
-          fontSize: '16px',
-          fontFamily: 'Arial',
-          color: '#555',
-          textAlign: 'center'
-        }}>
-          {getResilienceMessage()}
-        </div>
+        {getResilienceMessage()}
       </div>
       
       {/* Chart Section */}
       <div style={{
-        height: '150px',
-        marginBottom: '15px',
+        height: '180px',
+        marginBottom: '20px',
         position: 'relative'
       }}>
         {weeklyData.length > 0 ? (
-          <canvas ref={chartRef} height="150" />
+          <canvas ref={chartRef} height="180" />
         ) : (
           <div style={{
             display: 'flex',
@@ -333,18 +317,18 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
             justifyContent: 'center',
             alignItems: 'center',
             height: '100%',
-            color: '#999',
-            fontFamily: 'Arial',
+            color: PRIMARY_COLOR,
+            fontFamily: 'serif',
             fontSize: '16px',
             textAlign: 'center',
-            backgroundColor: 'rgba(0, 196, 180, 0.05)',
+            backgroundColor: BACKGROUND_COLOR,
             borderRadius: '10px',
             padding: '20px'
           }}>
             <div style={{ marginBottom: '10px' }}>
               <span style={{ fontSize: '24px' }}>📊</span>
             </div>
-            No flex yet—start exercising!
+            No data yet—start exercising!
           </div>
         )}
       </div>
@@ -354,7 +338,7 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
         display: 'flex',
         justifyContent: 'space-between',
         padding: '10px 0',
-        borderTop: `1px solid ${LIGHT_TEAL}`
+        borderTop: `1px solid ${ACCENT_COLOR}`
       }}>
         <div style={{
           textAlign: 'center',
@@ -362,15 +346,17 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
         }}>
           <div style={{ 
             fontSize: '14px', 
-            color: '#777',
-            marginBottom: '5px'
+            color: TEXT_COLOR,
+            marginBottom: '5px',
+            fontFamily: 'serif'
           }}>
             Exercises
           </div>
           <div style={{ 
-            fontSize: '18px', 
-            fontWeight: 'bold',
-            color: TEAL_COLOR
+            fontSize: '24px', 
+            fontWeight: 'normal',
+            color: SECONDARY_COLOR,
+            fontFamily: 'serif'
           }}>
             {exerciseCount}
           </div>
@@ -382,31 +368,22 @@ const ResilienceTracker: React.FC<ResilienceTrackerProps> = ({ exerciseCount, st
         }}>
           <div style={{ 
             fontSize: '14px', 
-            color: '#777',
-            marginBottom: '5px'
+            color: TEXT_COLOR,
+            marginBottom: '5px',
+            fontFamily: 'serif'
           }}>
             Stress Level
           </div>
           <div style={{ 
-            fontSize: '18px', 
-            fontWeight: 'bold',
-            color: '#FF4A4A'
+            fontSize: '24px', 
+            fontWeight: 'normal',
+            color: PRIMARY_COLOR,
+            fontFamily: 'serif'
           }}>
             {Math.round(stress * 100)}%
           </div>
         </div>
       </div>
-      
-      {/* Animation styles */}
-      <style>
-        {`
-          @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-          }
-        `}
-      </style>
     </div>
   );
 };

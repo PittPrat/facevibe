@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ExerciseValidators, getExerciseBenefits, getExerciseInstructions } from '../utils/FacialAnalysis';
+import { ExerciseValidators, getExerciseInstructions } from '../utils/FacialAnalysis';
 
 // Define global types for MediaPipe
 declare global {
@@ -25,6 +25,9 @@ interface ExerciseTrackerProps {
   videoConstraints?: MediaTrackConstraints;
   onLandmarkUpdate?: (landmarks: any, faceVisible: boolean) => void;
   onExerciseComplete?: () => void;
+  onExerciseSelection?: (exercise: string) => void;
+  onProgressUpdate?: (progress: number) => void;
+  exerciseCount?: number;
 }
 
 const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({ 
@@ -34,16 +37,21 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     facingMode: "user"
   },
   onLandmarkUpdate,
-  onExerciseComplete
+  onExerciseComplete,
+  onExerciseSelection,
+  onProgressUpdate,
+  exerciseCount
 }) => {
   // All refs must be declared at the top level
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const activeMeshRef = useRef<any>(null);
   const activeStreamRef = useRef<MediaStream | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
   const prevConstraintsRef = useRef(videoConstraints);
   const isFirstMountRef = useRef(true);
+  const displayScaleRef = useRef<{scaleX: number, scaleY: number}>({scaleX: 1, scaleY: 1});
   
   // State declarations
   const [loading, setLoading] = useState<boolean>(true);
@@ -52,13 +60,18 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const [feedback, setFeedback] = useState<string>("");
   const [feedbackType, setFeedbackType] = useState<'success' | 'failure' | ''>('');
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
-  const [vibePulse, setVibePulse] = useState<number>(0);
+  const [vibePulse, setVibePulse] = useState<number>(0); 
   const [actualResolution, setActualResolution] = useState({ width: 0, height: 0 });
   const [successStreak, setSuccessStreak] = useState<number>(0);
+  const [lastExerciseResult, setLastExerciseResult] = useState<{
+    isSuccessful: boolean;
+    feedbackMessage: string;
+  } | null>(null);
 
   // Premium colors
-  const TEAL_COLOR = "#00C4B4";
+  //const TEAL_COLOR = "#C49A7E"; 
   const RED_COLOR = "#FF4A4A";
+  const BEIGE_COLOR = "#F5F5DC"; // New beige color
 
   // Define the 10 required exercises
   const exercises: Record<ExerciseName, {
@@ -129,6 +142,57 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     }
   };
 
+  // Calculate proper canvas scaling based on container dimensions
+  const updateCanvasScaling = () => {
+    if (!containerRef.current || !canvasRef.current || !actualResolution.width) return;
+    
+    const containerWidth = containerRef.current.clientWidth;
+    const containerHeight = containerRef.current.clientHeight;
+    
+    // Calculate the scaling factors for width and height
+    const videoWidth = actualResolution.width;
+    const videoHeight = actualResolution.height;
+    
+    // Calculate aspect ratios
+    const videoAspect = videoWidth / videoHeight;
+    const containerAspect = containerWidth / containerHeight;
+    
+    let newWidth, newHeight, scaleX, scaleY;
+    
+    if (videoAspect > containerAspect) {
+      // Video is wider than container
+      newWidth = containerWidth;
+      newHeight = containerWidth / videoAspect;
+      scaleX = containerWidth / videoWidth;
+      scaleY = scaleX; // Maintain aspect ratio
+    } else {
+      // Video is taller than container
+      newHeight = containerHeight;
+      newWidth = containerHeight * videoAspect;
+      scaleY = containerHeight / videoHeight;
+      scaleX = scaleY; // Maintain aspect ratio
+    }
+    
+    // Store the scale for landmark rendering
+    displayScaleRef.current = { scaleX, scaleY };
+    
+    // Update canvas style
+    canvasRef.current.style.width = `${newWidth}px`;
+    canvasRef.current.style.height = `${newHeight}px`;
+    
+    // Center the canvas in the container
+    canvasRef.current.style.left = `${(containerWidth - newWidth) / 2}px`;
+    canvasRef.current.style.top = `${(containerHeight - newHeight) / 2}px`;
+    
+    // Apply the same styling to video element to ensure alignment
+    if (videoRef.current) {
+      videoRef.current.style.width = `${newWidth}px`;
+      videoRef.current.style.height = `${newHeight}px`;
+      videoRef.current.style.left = `${(containerWidth - newWidth) / 2}px`;
+      videoRef.current.style.top = `${(containerHeight - newHeight) / 2}px`;
+    }
+  };
+
   // Function to set up the camera and FaceMesh
   const setupCamera = async () => {
     if (!videoRef.current) return;
@@ -152,16 +216,14 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       const settings = videoTrack.getSettings();
       console.log("Video settings:", settings);
       
-      //const width = settings.width || 640;
-      //const height = settings.height || 480;
-      
+      // Store the actual video dimensions
       if (settings.width && settings.height) {
         setActualResolution({
           width: settings.width,
           height: settings.height
         });
         
-        // Set canvas dimensions
+        // Set canvas dimensions to match the actual video dimensions
         if (canvasRef.current) {
           canvasRef.current.width = settings.width;
           canvasRef.current.height = settings.height;
@@ -217,6 +279,9 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         setLoading(false);
         return;
       }
+      
+      // Apply the correct scaling once we have the video dimensions
+      updateCanvasScaling();
       
       try {
         // Make sure FaceMesh is available
@@ -285,6 +350,7 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           
           try {
             // Draw the current frame to the canvas
+            // Make sure we draw it at its native size
             ctx.drawImage(
               videoRef.current, 
               0, 
@@ -386,7 +452,6 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     
     console.log("MediaPipe cleanup complete");
   };
-  
   // Load MediaPipe dependencies and setup
   const loadMediaPipe = async () => {
     // Prevent duplicate initialization
@@ -423,7 +488,7 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     await cleanupMediaPipe();
     
     // Wait for cleanup to finalize with a slightly longer delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 800));
     
     // Reinitialize
     setupCamera();
@@ -452,10 +517,11 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     // Initial setup with a small delay to ensure DOM is ready
     const initTimer = setTimeout(() => {
       if (isMounted) {
+        console.log("Initial MediaPipe setup");
         loadMediaPipe();
         isFirstMountRef.current = false;
       }
-    }, 500);
+    }, 500); // Increased delay to ensure DOM is fully ready
     
     // Cleanup on unmount
     return () => {
@@ -465,6 +531,60 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       cleanupMediaPipe();
     };
   }, []);
+
+  // Add a visibility change listener to handle tab switching
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !activeMeshRef.current) {
+        console.log("Page became visible, reinitializing MediaPipe");
+        loadMediaPipe();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Add a focus event listener to handle window focus
+  useEffect(() => {
+    const handleFocus = () => {
+      if (!activeMeshRef.current) {
+        console.log("Window gained focus, checking MediaPipe");
+        loadMediaPipe();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
+  // Add resize observer to update canvas scaling
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const resizeObserver = new ResizeObserver(() => {
+      updateCanvasScaling();
+    });
+    
+    resizeObserver.observe(containerRef.current);
+    
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  // Update canvas scaling when actual resolution changes
+  useEffect(() => {
+    if (actualResolution.width > 0) {
+      updateCanvasScaling();
+    }
+  }, [actualResolution]);
 
   // Video constraints change effect
   useEffect(() => {
@@ -500,7 +620,7 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       notification.style.padding = '20px';
       notification.style.borderRadius = '10px';
       notification.style.zIndex = '9999';
-      notification.innerHTML = `<p>${error}</p><button style="background:${TEAL_COLOR};border:none;padding:10px;border-radius:5px;color:white;cursor:pointer;">Retry</button>`;
+      notification.innerHTML = `<p>${error}</p><button style="background:${BEIGE_COLOR};border:none;padding:10px;border-radius:5px;color:white;cursor:pointer;">Retry</button>`;
       document.body.appendChild(notification);
       
       // Add click handler to the retry button
@@ -521,97 +641,138 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     }
   }, [error]);
   
+  // Effect to handle progress updates and exercise completion
+  useEffect(() => {
+    // Calculate progress percentage (0-15 → 0-100%)
+    const progressPercentage = Math.min(100, Math.round((successStreak / 15) * 100));
+    
+    // Report progress update to parent component
+    if (onProgressUpdate) {
+      onProgressUpdate(progressPercentage);
+    }
+    
+    // Check for exercise completion
+    if (successStreak >= 15 && onExerciseComplete) {
+      onExerciseComplete();
+      // Reset streak after completion
+      setSuccessStreak(0);
+      
+      // Create a function for showing completion feedback
+      const showCompletionFeedback = () => {
+        const completionFeedback = document.createElement('div');
+        completionFeedback.style.position = 'fixed';
+        completionFeedback.style.top = '50%';
+        completionFeedback.style.left = '50%';
+        completionFeedback.style.transform = 'translate(-50%, -50%)';
+        completionFeedback.style.backgroundColor = 'rgba(230, 210, 180, 0.6)';
+        completionFeedback.style.color = 'white';
+        completionFeedback.style.padding = '20px';
+        completionFeedback.style.borderRadius = '10px';
+        completionFeedback.style.zIndex = '9999';
+        completionFeedback.style.textAlign = 'center';
+        completionFeedback.innerHTML = `<h3>Exercise Complete!</h3><p>You've mastered the ${selectedExercise}!</p>`;
+        document.body.appendChild(completionFeedback);
+        
+        // Remove after 0.5 seconds
+        setTimeout(() => {
+          if (document.body.contains(completionFeedback)) {
+            document.body.removeChild(completionFeedback);
+          }
+        }, 500);
+      };
+      
+      showCompletionFeedback();
+    }
+  }, [successStreak, onProgressUpdate, onExerciseComplete, selectedExercise]);
+  
+  // Add a useEffect to handle exercise success/failure state changes
+  useEffect(() => {
+    if (lastExerciseResult === null) return;
+    
+    const { isSuccessful, feedbackMessage } = lastExerciseResult;
+    // Update feedback
+    setFeedback(feedbackMessage);
+    setFeedbackType(isSuccessful ? 'success' : 'failure');
+    setShowFeedback(true);
+    
+    // Update vibePulse
+    setVibePulse(prev => isSuccessful ? Math.min(100, prev + 5) : Math.max(0, prev - 1));
+    
+    // Update success streak
+    if (isSuccessful) {
+      setSuccessStreak(prev => prev + 1);
+    } else {
+      setSuccessStreak(0);
+    }
+    
+    // Hide feedback after a delay
+    setTimeout(() => {
+      setShowFeedback(false);
+    }, 8000); 
+  }, [lastExerciseResult]);
+  
   // Handle FaceMesh results and provide premium feedback
   const onResults = (results: any) => {
     if (!canvasRef.current || !results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-        // No face detected
-        if (onLandmarkUpdate) {
-          onLandmarkUpdate(null, false);
-        }
-        return;
+      // No face detected
+      if (onLandmarkUpdate) {
+        onLandmarkUpdate(null, false);
       }
+      return;
+    }
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Clear canvas with each frame
+    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw video frame
-    if (videoRef.current) {
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    }
-    
-    // Get landmarks for selected exercise validation
+    // Get landmarks
     const landmarks = results.multiFaceLandmarks[0];
     
-    // Call onLandmarkUpdate callback if provided
+    // Notify parent component about landmark update
     if (onLandmarkUpdate) {
       onLandmarkUpdate(landmarks, true);
     }
     
+    // Update progress if provided
+    if (onProgressUpdate) {
+      onProgressUpdate(vibePulse);
+    }
+    
+    // Get current exercise
     const currentExercise = exercises[selectedExercise];
     
-    if (currentExercise) {
+    if (currentExercise && landmarks) {
+      // Only validate the currently selected exercise
       const isSuccessful = currentExercise.validate(landmarks);
       
-      // Update feedback based on exercise success
-      if (isSuccessful) {
-        setFeedback(currentExercise.successMessage);
-        setFeedbackType('success');
-        setVibePulse(prev => Math.min(100, prev + 5)); // Increase vibe pulse
-        setSuccessStreak(prev => prev + 1);
-        
-        // If success streak reaches threshold, consider exercise complete
-        if (successStreak >= 15 && onExerciseComplete) {
-          onExerciseComplete();
-          // Reset streak after completion
-          setSuccessStreak(0);
-          
-          // Show special completion feedback
-          const completionFeedback = document.createElement('div');
-          completionFeedback.style.position = 'fixed';
-          completionFeedback.style.top = '50%';
-          completionFeedback.style.left = '50%';
-          completionFeedback.style.transform = 'translate(-50%, -50%)';
-          completionFeedback.style.backgroundColor = 'rgba(0, 196, 180, 0.9)';
-          completionFeedback.style.color = 'white';
-          completionFeedback.style.padding = '20px';
-          completionFeedback.style.borderRadius = '10px';
-          completionFeedback.style.zIndex = '9999';
-          completionFeedback.style.textAlign = 'center';
-          completionFeedback.innerHTML = `<h3>Exercise Complete!</h3><p>You've mastered the ${selectedExercise}!</p>`;
-          document.body.appendChild(completionFeedback);
-          
-          // Remove after 3 seconds
-          setTimeout(() => {
-            if (document.body.contains(completionFeedback)) {
-              document.body.removeChild(completionFeedback);
-            }
-          }, 3000);
-        }
-      } else {
-        setFeedback(currentExercise.failureMessage);
-        setFeedbackType('failure');
-        setVibePulse(prev => Math.max(0, prev - 1)); // Decrease vibe pulse
-        setSuccessStreak(0); // Reset streak on failure
-      }
-      
-      setShowFeedback(true);
+      // Store exercise result state
+      setLastExerciseResult({
+        isSuccessful,
+        feedbackMessage: isSuccessful 
+          ? currentExercise.successMessage
+          : currentExercise.failureMessage
+      });
       
       // Draw face landmarks with premium styling
       ctx.save();
-      ctx.fillStyle = isSuccessful ? TEAL_COLOR : RED_COLOR;
+      ctx.fillStyle = isSuccessful ? BEIGE_COLOR : RED_COLOR;
+      
+      // Get current display scale for correct landmark visualization
+      //const { scaleX, scaleY } = displayScaleRef.current;
       
       // Draw facial mesh landmarks with elegant visualization
+      // No need to apply scaleX/scaleY here as we're drawing directly on the canvas
+      // at its native resolution. The canvas itself is being scaled in the DOM.
       for (const landmark of landmarks) {
         const x = landmark.x * canvas.width;
         const y = landmark.y * canvas.height;
         
         // Draw elegant dots for landmarks
         ctx.beginPath();
-        ctx.arc(x, y, 1, 0, 2 * Math.PI);
+        ctx.arc(x, y, 1.5, 0, 2 * Math.PI); 
         ctx.fill();
       }
       
@@ -636,21 +797,24 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     const radius = 20;
     const pulseRadius = radius + (value / 10);
     
-    // Draw outer pulse circle
+    // Draw outer pulse glow
+    const gradient = ctx.createRadialGradient(x, y, radius, x, y, pulseRadius);
+    gradient.addColorStop(0, `rgba(245, 245, 220, 0.8)`); 
+    gradient.addColorStop(1, `rgba(245, 245, 220, 0)`); 
+    ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.arc(x, y, pulseRadius, 0, 2 * Math.PI);
-    ctx.fillStyle = `rgba(0, 196, 180, ${value / 200})`;
     ctx.fill();
     
     // Draw inner circle
+    ctx.fillStyle = `rgba(245, 245, 220, 0.9)`; 
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, 2 * Math.PI);
-    ctx.fillStyle = `rgba(0, 196, 180, ${value / 100 + 0.3})`;
     ctx.fill();
     
-    // Add pulse text
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 10px Arial";
+    // Draw percentage text
+    ctx.fillStyle = "white";
+    ctx.font = "bold 14px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(`${value}%`, x, y);
@@ -658,44 +822,29 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   
   // Handle exercise selection change
   const handleExerciseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedExercise(e.target.value as ExerciseName);
+    const newExercise = e.target.value as ExerciseName;
+    setSelectedExercise(newExercise);
     setFeedback("");
     setFeedbackType('');
     setShowFeedback(false);
     setSuccessStreak(0);
+    
+    // Notify parent of exercise selection change
+    if (onExerciseSelection) {
+      onExerciseSelection(newExercise);
+    }
   };
   
   return (
-    <div className="exercise-tracker" style={{ 
-      position: 'relative',
-      width: '100%', 
-      height: '100%',
-      overflow: 'hidden'
-    }}>
-      {/* Premium title */}
-      <div style={{ 
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        right: '0',
-        padding: '15px',
-        color: 'white', 
-        textAlign: 'center',
-        zIndex: 10,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(10px)'
-      }}>
-        <h2 style={{
-          fontFamily: 'Arial', 
-          fontSize: '24px',
-          margin: '0',
-          textShadow: '0 0 10px rgba(0, 196, 180, 0.5), 0 0 20px rgba(0, 0, 0, 0.5)'
-        }}>
-          FaceVibe Exercise Tracker
-        </h2>
-      </div>
-      
-      {/* Luxe exercise selector */}
+    <div className="exercise-tracker" 
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        width: '100%', 
+        height: '100%',
+        overflow: 'hidden'
+      }}
+    >
       <div style={{
         position: 'absolute',
         top: '90px',
@@ -718,7 +867,7 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             fontFamily: 'Arial',
             fontSize: '18px',
             backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            border: `2px solid ${TEAL_COLOR}`,
+            border: `2px solid ${BEIGE_COLOR}`,
             borderRadius: '30px',
             color: 'white',
             outline: 'none',
@@ -728,15 +877,93 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             backdropFilter: 'blur(5px)'
           }}
         >
-          {Object.keys(exercises).map((exercise) => (
+          {[...new Set(Object.keys(exercises))].map((exercise) => (
             <option key={exercise} value={exercise}>
               {exercise}
             </option>
           ))}
         </select>
+        <div style={{
+          marginLeft: '10px',
+          marginRight: '10px',
+          padding: '8px 15px',
+          fontSize: '16px',
+          fontFamily: 'Arial',
+          color: 'white',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          borderRadius: '30px',
+          border: `2px solid ${BEIGE_COLOR}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backdropFilter: 'blur(5px)'
+        }}>
+          Exercises today: <span style={{ fontWeight: 'bold', marginLeft: '5px', color: BEIGE_COLOR }}>{exerciseCount || 0}/10</span>
+        </div>
+        <button 
+          onClick={() => {
+            // Mark the current exercise as successful
+            
+            // Show success feedback
+            setFeedback(exercises[selectedExercise].successMessage);
+            setFeedbackType('success');
+            setShowFeedback(true);
+            
+            // Call onExerciseComplete if provided
+            if (onExerciseComplete) {
+              onExerciseComplete();
+            }
+            
+            // Show completion feedback like in automatic detection
+            const showCompletionFeedback = () => {
+              // Create a stylish completion feedback element
+              const completionFeedback = document.createElement('div');
+              completionFeedback.style.position = 'fixed';
+              completionFeedback.style.top = '50%';
+              completionFeedback.style.left = '50%';
+              completionFeedback.style.transform = 'translate(-50%, -50%)';
+              completionFeedback.style.backgroundColor = 'rgba(230, 210, 180, 0.6)';
+              completionFeedback.style.color = 'white';
+              completionFeedback.style.padding = '20px 30px';
+              completionFeedback.style.borderRadius = '15px';
+              completionFeedback.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
+              completionFeedback.style.textAlign = 'center';
+              completionFeedback.style.zIndex = '1000';
+              completionFeedback.style.fontFamily = 'Arial, sans-serif';
+              completionFeedback.style.animation = 'fadeIn 0.5s';
+              completionFeedback.innerHTML = `<h3>Exercise Complete!</h3><p>You've mastered the ${selectedExercise}!</p>`;
+              document.body.appendChild(completionFeedback);
+              
+              // Remove after 3 seconds
+              setTimeout(() => {
+                if (document.body.contains(completionFeedback)) {
+                  document.body.removeChild(completionFeedback);
+                }
+              }, 3000);
+            };
+            
+            showCompletionFeedback();
+            
+            // Hide feedback after a longer delay (8 seconds)
+            setTimeout(() => {
+              setShowFeedback(false);
+            }, 8000);
+          }}
+          style={{
+            padding: '8px 12px',
+            marginLeft: '10px',
+            backgroundColor: '#C49A7E',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          Mark Complete
+        </button>
       </div>
       
-      {/* Video with teal glow border */}
       <div style={{ 
         position: 'absolute',
         top: 0,
@@ -747,7 +974,6 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         height: '100%',
         overflow: 'hidden'
       }}>
-        {/* Loading spinner */}
         {loading && (
           <div style={{
             position: 'absolute',
@@ -764,7 +990,7 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           }}>
             <div className="vibe-check-spinner"></div>
             <p style={{
-              color: TEAL_COLOR,
+              color: BEIGE_COLOR,
               fontFamily: 'Arial',
               fontSize: '18px',
               marginLeft: '15px'
@@ -772,7 +998,6 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           </div>
         )}
         
-        {/* Error message */}
         {error && (
           <div style={{
             position: 'absolute',
@@ -800,7 +1025,7 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             <button 
               onClick={retrySetupCamera}
               style={{
-                backgroundColor: TEAL_COLOR,
+                backgroundColor: BEIGE_COLOR,
                 color: 'white',
                 border: 'none',
                 padding: '8px 15px',
@@ -816,46 +1041,34 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           </div>
         )}
         
-        {/* Video element */}
         <video
           ref={videoRef}
           style={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            transform: 'scaleX(-1)', // Mirror video for better user experience
-            zIndex: 1 // Ensure video is above the background but below overlays
+            transform: 'scaleX(-1)', // Mirror horizontally
+            zIndex: 1,
+            objectFit: 'contain' // Changed from cover to contain to maintain aspect ratio
           }}
         />
         
-        {/* Canvas overlay */}
         <canvas
           ref={canvasRef}
-          width={320}
-          height={240}
           style={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            transform: 'scaleX(-1)', // Mirror canvas to match video
-            zIndex: 2 // Above video but below UI elements
+            transform: 'scaleX(-1)', // Mirror horizontally
+            zIndex: 2
+            // Width and height will be set dynamically by updateCanvasScaling
           }}
         />
         
-        {/* Premium feedback animation */}
         {showFeedback && (
           <div
             style={{
               position: 'absolute',
-              bottom: '20px',
+              bottom: '80px', 
               left: '50%',
               transform: 'translateX(-50%)',
-              backgroundColor: feedbackType === 'success' ? `rgba(0, 196, 180, 0.8)` : 'rgba(255, 74, 74, 0.8)',
+              backgroundColor: feedbackType === 'success' ? `rgba(245, 245, 220, 0.8)` : 'rgba(255, 74, 74, 0.8)',
               color: 'white',
               padding: '8px 15px',
               borderRadius: '30px',
@@ -876,7 +1089,6 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           </div>
         )}
         
-        {/* Exercise instruction tooltip */}
         <div
           style={{
             position: 'absolute',
@@ -900,7 +1112,6 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           {getExerciseInstructions(selectedExercise)}
         </div>
         
-        {/* Resolution display */}
         {actualResolution.width > 0 && (
           <div style={{
             position: 'absolute',
@@ -918,29 +1129,6 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         )}
       </div>
       
-      {/* Science-backed guidance */}
-      <div style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: '20px',
-        right: '20px',
-        padding: '10px 15px',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(5px)',
-        borderRadius: '10px',
-        zIndex: 10
-      }}>
-        <p style={{
-          fontFamily: 'Arial',
-          fontSize: '14px',
-          color: 'white',
-          margin: '0'
-        }}>
-          <span style={{ color: TEAL_COLOR, fontWeight: 'bold' }}>CBT Insight:</span> {getExerciseBenefits(selectedExercise)}
-        </p>
-      </div>
-      
-      {/* Global styles for premium animations */}
       <style>
         {`
           @keyframes slideIn {
@@ -949,9 +1137,9 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           }
           
           @keyframes pulse {
-            0% { box-shadow: 0 0 5px rgba(0, 196, 180, 0.7); }
-            50% { box-shadow: 0 0 20px rgba(0, 196, 180, 0.9); }
-            100% { box-shadow: 0 0 5px rgba(0, 196, 180, 0.7); }
+            0% { box-shadow: 0 0 5px rgba(245, 245, 220, 0.7); }
+            50% { box-shadow: 0 0 20px rgba(245, 245, 220, 0.9); }
+            100% { box-shadow: 0 0 5px rgba(245, 245, 220, 0.7); }
           }
           
           @keyframes spin {
@@ -959,22 +1147,27 @@ const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             100% { transform: rotate(360deg); }
           }
           
+          @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+          }
+          
           .exercise-tracker select:hover {
-            border-color: ${TEAL_COLOR};
-            box-shadow: 0 0 15px rgba(0, 196, 180, 0.3);
+            border-color: ${BEIGE_COLOR};
+            box-shadow: 0 0 15px rgba(245, 245, 220, 0.3);
           }
           
           .exercise-tracker select:focus {
-            border-color: ${TEAL_COLOR};
-            box-shadow: 0 0 20px rgba(0, 196, 180, 0.5);
+            border-color: ${BEIGE_COLOR};
+            box-shadow: 0 0 20px rgba(245, 245, 220, 0.5);
           }
           
           .vibe-check-spinner {
             width: 40px;
             height: 40px;
-            border: 4px solid rgba(0, 196, 180, 0.3);
+            border: 4px solid rgba(245, 245, 220, 0.3);
             border-radius: 50%;
-            border-top-color: ${TEAL_COLOR};
+            border-top-color: ${BEIGE_COLOR};
             animation: spin 1s ease-in-out infinite;
           }
         `}

@@ -21,35 +21,35 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
   // Use useMemo to prevent recreating this array on every render
   const friends = useMemo<Friend[]>(() => [
     { 
+      name: 'Taylor', 
+      streak: 7
+    },
+    { 
       name: 'Alex', 
-      streak: 5, 
-      avatar: '/facevibe/avatars/alex.jpg' 
+      streak: 5
     },
     { 
       name: 'Jamie', 
-      streak: 3, 
-      avatar: '/facevibe/avatars/jamie.jpg' 
-    },
-    { 
-      name: 'Taylor', 
-      streak: 7, 
-      avatar: '/facevibe/avatars/taylor.jpg' 
+      streak: 3
     },
     { 
       name: 'Jordan', 
-      streak: 2, 
-      avatar: '/facevibe/avatars/jordan.jpg' 
+      streak: 2
     }
   ], []); // Empty dependency array means this only runs once
   
   const [leaderboard, setLeaderboard] = useState<(Friend | { name: string; streak: number; isUser: true; avatar?: string })[]>([]);
   const [showConfetti, setShowConfetti] = useState<boolean>(false);
   
-  // Premium colors
-  const TEAL_COLOR = "#00C4B4";
-  const GOLD_COLOR = "#FFD700";
-  const SILVER_COLOR = "#C0C0C0";
-  const BRONZE_COLOR = "#CD7F32";
+  // Updated colors to match Figma design
+  const PRIMARY_COLOR = "#8D8D8D"; // Gray
+  const SECONDARY_COLOR = "#C49A7E"; // Beige
+  const ACCENT_COLOR = "#E1DDD1"; // Light beige
+  const BACKGROUND_COLOR = "#F8F6F2"; // Off-white
+  const TEXT_COLOR = "#2E2E2E"; // Dark gray
+  const GOLD_COLOR = "#C4B382"; // Gold for 1st place
+  const SILVER_COLOR = "#B8B8B8"; // Silver for 2nd place 
+  const BRONZE_COLOR = "#CD9B7A"; // Bronze for 3rd place
 
   // Update streak based on exerciseDoneToday
   useEffect(() => {
@@ -59,7 +59,7 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
   // Update leaderboard when myStreak changes
   useEffect(() => {
     updateLeaderboard();
-  }, [myStreak]); // Removed friends from the dependency array since it doesn't change
+  }, [myStreak]);
 
   // Show confetti animation when streak increases
   useEffect(() => {
@@ -151,7 +151,7 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
   const updateLeaderboard = () => {
     // Create combined list with user and friends
     const combined: (Friend | { name: string; streak: number; isUser: true; avatar?: string })[] = [
-      { name: 'You', streak: myStreak, isUser: true, avatar: '/facevibe/avatars/user.jpg' },
+      { name: 'You', streak: myStreak, isUser: true },
       ...friends
     ];
     
@@ -171,16 +171,15 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
       case 2:
         return { emoji: '🥉', color: BRONZE_COLOR };
       default:
-        return { emoji: `${index + 1}`, color: '#999' };
+        return { emoji: `${index + 1}`, color: PRIMARY_COLOR };
     }
   };
 
   // Get streak status message
   const getStreakStatus = (streak: number) => {
-    if (streak >= 10) return "Ultimate Streak Champion!";
-    if (streak >= 7) return "Streak Star!";
-    if (streak >= 5) return "On Fire!";
-    if (streak >= 3) return "Building Momentum!";
+    if (streak >= 7) return "You're on fire!";
+    if (streak >= 5) return "Great progress!";
+    if (streak >= 3) return "Building momentum!";
     if (streak > 0) return "Getting Started!";
     return "Start your streak!";
   };
@@ -189,15 +188,15 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
     <div className="social-streaks" style={{ 
       position: 'relative',
       width: '100%',
-      maxWidth: '300px',
+      maxWidth: '400px',
       margin: '15px auto',
-      padding: '15px',
+      padding: '20px',
       backgroundColor: 'white',
       borderRadius: '15px',
-      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.1)',
-      border: `1px solid rgba(0, 196, 180, 0.2)`
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)',
+      border: `1px solid ${ACCENT_COLOR}`
     }}>
-      {/* Confetti overlay */}
+      {/* Confetti overlay - more subtle */}
       {showConfetti && (
         <div className="confetti-container" style={{
           position: 'absolute',
@@ -209,18 +208,18 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
           pointerEvents: 'none',
           zIndex: 10
         }}>
-          {Array.from({ length: 50 }).map((_, i) => (
+          {Array.from({ length: 30 }).map((_, i) => (
             <div 
               key={i}
               className="confetti"
               style={{
                 position: 'absolute',
-                width: `${Math.random() * 10 + 5}px`,
-                height: `${Math.random() * 10 + 5}px`,
-                backgroundColor: [TEAL_COLOR, GOLD_COLOR, '#FF4A4A', '#6A5ACD'][Math.floor(Math.random() * 4)],
+                width: `${Math.random() * 8 + 4}px`,
+                height: `${Math.random() * 8 + 4}px`,
+                backgroundColor: [PRIMARY_COLOR, SECONDARY_COLOR, GOLD_COLOR, ACCENT_COLOR][Math.floor(Math.random() * 4)],
                 top: '-10px',
                 left: `${Math.random() * 100}%`,
-                opacity: Math.random(),
+                opacity: Math.random() * 0.7 + 0.3,
                 animation: `fall ${Math.random() * 3 + 2}s linear forwards, spin ${Math.random() * 3 + 2}s linear infinite`
               }}
             />
@@ -228,83 +227,85 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
         </div>
       )}
       
-      {/* Premium title */}
+      {/* Refined title */}
       <h3 style={{ 
-        color: TEAL_COLOR, 
-        fontFamily: 'Arial', 
+        color: TEXT_COLOR, 
+        fontFamily: 'serif', 
         fontSize: '20px',
         textAlign: 'center',
-        margin: '0 0 15px 0',
+        margin: '0 0 20px 0',
         padding: '0 0 10px 0',
-        borderBottom: `2px solid rgba(0, 196, 180, 0.2)`
+        borderBottom: `1px solid ${ACCENT_COLOR}`,
+        fontWeight: 'normal'
       }}>
         Vibe Streaks
       </h3>
       
-      {/* User's streak highlight */}
+      {/* User's streak highlight - redesigned */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 196, 180, 0.1)',
-        padding: '10px 15px',
+        backgroundColor: 'rgba(196, 154, 126, 0.05)',
+        padding: '15px',
         borderRadius: '10px',
-        marginBottom: '15px'
+        marginBottom: '20px'
       }}>
         <div style={{
-          width: '40px',
-          height: '40px',
+          width: '50px',
+          height: '50px',
           borderRadius: '50%',
-          backgroundColor: TEAL_COLOR,
+          backgroundColor: SECONDARY_COLOR,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           marginRight: '15px',
-          fontSize: '20px',
+          fontSize: '24px',
           color: 'white',
-          fontWeight: 'bold',
+          fontWeight: 'normal',
+          fontFamily: 'serif'
         }}>
           {myStreak}
         </div>
         
         <div style={{ flex: 1 }}>
           <div style={{
-            fontFamily: 'Arial',
+            fontFamily: 'serif',
             fontSize: '18px',
-            fontWeight: 'bold',
-            color: '#333',
-            marginBottom: '3px'
+            fontWeight: 'normal',
+            color: TEXT_COLOR,
+            marginBottom: '5px'
           }}>
             Your Current Streak
           </div>
           
           <div style={{
-            fontFamily: 'Arial',
+            fontFamily: 'serif',
             fontSize: '14px',
-            color: myStreak > 5 ? TEAL_COLOR : '#666',
-            fontWeight: myStreak > 5 ? 'bold' : 'normal'
+            color: myStreak > 3 ? SECONDARY_COLOR : TEXT_COLOR,
+            fontWeight: 'normal'
           }}>
             {getStreakStatus(myStreak)}
           </div>
         </div>
       </div>
       
-      {/* Leaderboard */}
+      {/* Leaderboard - refined */}
       <div>
         <div style={{
           fontSize: '16px',
-          fontFamily: 'Arial',
-          color: '#555',
+          fontFamily: 'serif',
+          color: TEXT_COLOR,
           marginBottom: '10px',
           display: 'flex',
           alignItems: 'center'
         }}>
-          <span style={{ marginRight: '5px' }}>🏆</span> Streak Leaderboard
+          <span style={{ marginRight: '5px', fontSize: '14px' }}>🏆</span> Streak Leaderboard
         </div>
         
         <div style={{
           borderRadius: '10px',
           overflow: 'hidden',
-          boxShadow: '0 4px 8px rgba(0, 0, 0, 0.05)'
+          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.03)'
         }}>
           {leaderboard.map((person, index) => {
             const position = getPosition(index);
@@ -316,66 +317,63 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  padding: '10px 15px',
-                  backgroundColor: isUser ? 'rgba(0, 196, 180, 0.1)' : index % 2 === 0 ? 'white' : '#f9f9f9',
-                  borderBottom: index < leaderboard.length - 1 ? '1px solid #eee' : 'none'
+                  padding: '12px 15px',
+                  backgroundColor: isUser ? 'rgba(196, 154, 126, 0.05)' : index % 2 === 0 ? 'white' : '#F9F8F6',
+                  borderBottom: index < leaderboard.length - 1 ? `1px solid ${ACCENT_COLOR}` : 'none'
                 }}
               >
+                {/* Position indicator */}
                 <div style={{ 
                   width: '24px',
                   height: '24px',
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
-                  fontWeight: 'bold',
+                  fontWeight: 'normal',
                   color: position.color,
-                  marginRight: '10px'
+                  marginRight: '10px',
+                  fontSize: '14px',
+                  fontFamily: 'serif'
                 }}>
-                  {position.emoji}
+                  {index < 3 ? position.emoji : position.emoji}
                 </div>
                 
+                {/* Avatar circle */}
                 <div style={{
                   width: '30px',
                   height: '30px',
                   borderRadius: '50%',
                   overflow: 'hidden',
-                  backgroundColor: '#eee',
-                  marginRight: '10px',
+                  backgroundColor: ACCENT_COLOR,
+                  marginRight: '15px',
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
                   fontSize: '14px',
-                  color: '#666'
+                  color: TEXT_COLOR,
+                  fontFamily: 'serif'
                 }}>
-                  {person.avatar ? (
-                    <div style={{
-                      width: '100%',
-                      height: '100%',
-                      backgroundImage: `url(${person.avatar})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center'
-                    }} />
-                  ) : (
-                    person.name.charAt(0)
-                  )}
+                  {person.name.charAt(0)}
                 </div>
                 
+                {/* Name */}
                 <div style={{ flex: 1 }}>
                   <span style={{ 
-                    fontFamily: 'Arial',
+                    fontFamily: 'serif',
                     fontSize: '16px',
-                    fontWeight: isUser ? 'bold' : 'normal',
-                    color: isUser ? TEAL_COLOR : '#333'
+                    fontWeight: 'normal',
+                    color: isUser ? SECONDARY_COLOR : TEXT_COLOR
                   }}>
                     {person.name}
                   </span>
                 </div>
                 
+                {/* Streak count */}
                 <div style={{
-                  fontFamily: 'Arial',
+                  fontFamily: 'serif',
                   fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: person.streak > 0 ? '#333' : '#999'
+                  fontWeight: 'normal',
+                  color: person.streak > 0 ? TEXT_COLOR : PRIMARY_COLOR
                 }}>
                   {person.streak} {person.streak === 1 ? 'day' : 'days'}
                 </div>
@@ -385,17 +383,17 @@ const SocialStreaks: React.FC<SocialStreaksProps> = ({ exerciseDoneToday }) => {
         </div>
       </div>
       
-      {/* Motivational message */}
+      {/* Motivational message - restyled */}
       {myStreak === 0 && (
         <div style={{
-          marginTop: '15px',
-          padding: '10px',
+          marginTop: '20px',
+          padding: '12px 15px',
           borderRadius: '8px',
-          backgroundColor: 'rgba(255, 193, 7, 0.1)',
-          borderLeft: '3px solid #FFC107',
+          backgroundColor: BACKGROUND_COLOR,
+          borderLeft: `3px solid ${SECONDARY_COLOR}`,
           fontSize: '14px',
-          fontFamily: 'Arial',
-          color: '#666'
+          fontFamily: 'serif',
+          color: TEXT_COLOR
         }}>
           Complete today's exercises to start your streak!
         </div>
